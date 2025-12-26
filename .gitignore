@@ -1,0 +1,22 @@
+# Secrets & Config
+.env
+*.env
+
+# Ignore les fichiers exécutables compilés
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Dépendances
+vendor/
+
+# IDE & Système
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
