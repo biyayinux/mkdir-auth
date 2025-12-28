@@ -9,13 +9,14 @@
 Remplacer les valeurs d’exemple par les valeurs réelles utilisées en production
 
 ```bash
-  # Configuration Google OAuth2
+  PORT=8080
+  APP_ENV=development
+  
   GOOGLE_CLIENT_ID=123456-xxxxxx.apps.googleusercontent.com
   GOOGLE_CLIENT_SECRET=xxxxxx-xxxxxx
 
-  # Configuration du serveur
-  PORT=8080
-  APP_ENV=development
+  FRONTEND_URL=http://localhost:5173
+  JWT_SECRET=xxxxxx-xxxxxx-xxxxxx
 ```
 
 ##  Démarrage
