@@ -1,0 +1,35 @@
+-- 1. Table administrateurs
+CREATE TABLE administrateurs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR NOT NULL UNIQUE,
+    noms VARCHAR NOT NULL,
+    cree_le TIMESTAMP DEFAULT NOW()
+);
+
+-- 2. Table applications
+CREATE TABLE applications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nom VARCHAR NOT NULL,
+    client_secret_hash VARCHAR NOT NULL,
+    est_active BOOLEAN DEFAULT TRUE,
+    administrateur_id UUID NOT NULL REFERENCES administrateurs(id) ON DELETE CASCADE,
+    cree_le TIMESTAMP DEFAULT NOW()
+);
+
+-- 3. Table URIS
+CREATE TABLE uris (
+    id SERIAL PRIMARY KEY,
+    uri VARCHAR NOT NULL UNIQUE,
+    application_id UUID NOT NULL UNIQUE REFERENCES applications(id) ON DELETE CASCADE,
+    cree_le TIMESTAMP DEFAULT NOW()
+);
+
+-- 4. Table sessions
+CREATE TABLE sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    utilisateur_id UUID NOT NULL,
+    refresh_token VARCHAR NOT NULL UNIQUE,
+    expire_le TIMESTAMP NOT NULL,
+    application_id UUID REFERENCES applications(id) ON DELETE CASCADE,
+    cree_le TIMESTAMP DEFAULT NOW()
+);
