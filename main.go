@@ -34,7 +34,8 @@ func init() {
 func main() {
 	http.HandleFunc("/login", handleLogin)
 	http.HandleFunc("/callback", handleCallback)
-	http.HandleFunc("/me", handleMe) // Route pour que le front puisse vérifier si l'utilisateur est connecté
+	http.HandleFunc("/me", handleMe)
+	http.HandleFunc("/logout", handleLogout)
 
 	fmt.Println("Serveur API sur http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -57,6 +58,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Récupérer les infos utilisateur via l'API Google
 	resp, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + token.AccessToken)
 	if err != nil {
 		http.Error(w, "Erreur Infos User", http.StatusInternalServerError)
@@ -118,4 +120,25 @@ func handleMe(w http.ResponseWriter, r *http.Request) {
 	} else {
 		http.Error(w, "Token invalide", http.StatusUnauthorized)
 	}
+}
+
+// Nouvelle fonction de déconnexion
+func handleLogout(w http.ResponseWriter, r *http.Request) {
+	// Autoriser le front à faire cette requête
+	w.Header().Set("Access-Control-Allow-Origin", os.Getenv("FRONTEND_URL"))
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+
+	// On invalide le cookie en mettant un MaxAge à -1
+	http.SetCookie(w, &http.Cookie{
+		Name:     "auth_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   false, // Mettre à true en production
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, `{"message": "Déconnecté"}`)
 }
