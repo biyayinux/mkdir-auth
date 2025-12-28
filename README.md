@@ -1,5 +1,5 @@
 
-# MKDIR AUTH
+# 🛡️ MKDIR AUTH
 
 🔐🚀 mkdir Auth est une API d’authentification moderne en Go, conçue pour sécuriser 🔒, gérer 👥 et contrôler 🚧 les accès aux services de mkdir.
 ⚡☁️ Performante, scalable 📈 et cloud-native 🐹, elle fournit des tokens 🔑, une sécurité béton 🛡️ et une intégration ultra simple 🔌✨
@@ -9,24 +9,19 @@
 Remplacer les valeurs d’exemple par les valeurs réelles utilisées en production
 
 ```bash
-  # Configuration Serveur
-  SERVER_PORT=:8080
-  SERVER_URL=http://localhost:8080
-  FRONTEND_URL=http://localhost:5173
+  # Configuration Google OAuth2
+  GOOGLE_CLIENT_ID=123456-xxxxxx.apps.googleusercontent.com
+  GOOGLE_CLIENT_SECRET=xxxxxx-xxxxxx
 
-  # Configuration Google
-  GOOGLE_CLIENT_ID=123-xxxxxx-xxxxxx.apps.googleusercontent.com
-  GOOGLE_CLIENT_SECRET=xxx-xxx-xxx
-  GOOGLE_REDIRECT_URL=http://localhost:8080/callback
-
-  # Sécurité
-  JWT_SECRET=xxxx-xxxx-xxxx
+  # Configuration du serveur
+  PORT=8080
+  APP_ENV=development
 ```
 
-##  Récap express
+##  Démarrage
 
 ```bash
   cd mkdir-auth
   go mod tidy
-  go run ./cmd/server
+  go run main.go
 ```
