@@ -1,4 +1,4 @@
--- 1. Table administrateurs
+-- 1. Table des Administrateurs
 CREATE TABLE administrateurs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR NOT NULL UNIQUE,
@@ -6,30 +6,38 @@ CREATE TABLE administrateurs (
     cree_le TIMESTAMP DEFAULT NOW()
 );
 
--- 2. Table applications
-CREATE TABLE applications (
+-- 2. Table des Projets
+CREATE TABLE projets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nom VARCHAR NOT NULL,
-    client_secret_hash VARCHAR NOT NULL,
-    est_active BOOLEAN DEFAULT TRUE,
+    publishable_key VARCHAR NOT NULL UNIQUE,
+    secret_key_hash VARCHAR NOT NULL UNIQUE,
+    origines_autorisees VARCHAR[] DEFAULT '{}',
+    est_actif BOOLEAN DEFAULT TRUE,
     administrateur_id UUID NOT NULL REFERENCES administrateurs(id) ON DELETE CASCADE,
     cree_le TIMESTAMP DEFAULT NOW()
 );
 
--- 3. Table URIS
-CREATE TABLE uris (
-    id SERIAL PRIMARY KEY,
-    uri VARCHAR NOT NULL UNIQUE,
-    application_id UUID NOT NULL UNIQUE REFERENCES applications(id) ON DELETE CASCADE,
+-- 3. Table des Utilisateurs
+CREATE TABLE utilisateurs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR NOT NULL UNIQUE,
+    google_id VARCHAR UNIQUE,
+    noms VARCHAR,
+    avatar_url VARCHAR,
+    projet_id UUID NOT NULL REFERENCES projets(id) ON DELETE CASCADE,
+    derniere_connexion TIMESTAMP,
     cree_le TIMESTAMP DEFAULT NOW()
 );
 
--- 4. Table sessions
+-- 4. Table des Sessions
 CREATE TABLE sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    utilisateur_id UUID NOT NULL,
     refresh_token VARCHAR NOT NULL UNIQUE,
+    user_agent VARCHAR,
+    adresse_ip VARCHAR,
     expire_le TIMESTAMP NOT NULL,
-    application_id UUID REFERENCES applications(id) ON DELETE CASCADE,
+    projet_id UUID NOT NULL REFERENCES projets(id) ON DELETE CASCADE,
+    utilisateur_id UUID NOT NULL REFERENCES utilisateurs(id) ON DELETE CASCADE,    
     cree_le TIMESTAMP DEFAULT NOW()
 );
