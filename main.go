@@ -21,10 +21,16 @@ import (
 var (
 	googleOauthConfig *oauth2.Config
 	db                *sql.DB
+	serverURL         string
+	port              string
 )
 
 func init() {
 	godotenv.Load()
+
+	serverURL = os.Getenv("SERVER_URL")
+	port = os.Getenv("PORT")
+
 	var err error
 	db, err = sql.Open("postgres", os.Getenv("DATABASE_URL"))
 	if err != nil {
@@ -32,7 +38,7 @@ func init() {
 	}
 
 	googleOauthConfig = &oauth2.Config{
-		RedirectURL:  "http://localhost:8080/callback",
+		RedirectURL:  serverURL + "/callback",
 		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"},
@@ -46,12 +52,12 @@ func main() {
 	http.HandleFunc("/me", handleMe)
 	http.HandleFunc("/logout", handleLogout)
 
-	fmt.Println("Serveur Auth Multi-Tenant sur http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	fmt.Println("Serveur Auth Multi-Locataire sur " + serverURL)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
 func handleLogin(w http.ResponseWriter, r *http.Request) {
-	// Gestion CORS
+	// Gestion cors
 	origin := r.Header.Get("Origin")
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -67,7 +73,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	var projet struct {
 		ID      string
-		Origine string // Maintenant une simple string
+		Origine string
 	}
 
 	// Récupération de l'origine unique depuis la DB
@@ -157,6 +163,8 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		"exp":    time.Now().Add(time.Hour * 24).Unix(),
 	}
 	tokenString, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(os.Getenv("JWT_SECRET")))
+	// On récupère la valeur du .env et on vérifie si elle est égale à 'true'
+	isSecure := os.Getenv("COOKIE_SECURE") == "true"
 
 	// Cookie sécurisé
 	http.SetCookie(w, &http.Cookie{
@@ -164,7 +172,7 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		Value:    tokenString,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   false, // Mettre à true en production (HTTPS)
+		Secure:   isSecure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   86400,
 	})
