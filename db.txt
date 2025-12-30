@@ -2,17 +2,17 @@
 CREATE TABLE administrateurs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR NOT NULL UNIQUE,
-    noms VARCHAR NOT NULL,
+    pseudo VARCHAR NOT NULL UNIQUE,
     cree_le TIMESTAMP DEFAULT NOW()
 );
 
 -- 2. Table des Projets
 CREATE TABLE projets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    nom VARCHAR NOT NULL,
+    nom VARCHAR NOT NULL UNIQUE,
+    origines_autorisees VARCHAR NOT NULL,
     publishable_key VARCHAR NOT NULL UNIQUE,
     secret_key_hash VARCHAR NOT NULL UNIQUE,
-    origines_autorisees VARCHAR[] DEFAULT '{}',
     est_actif BOOLEAN DEFAULT TRUE,
     administrateur_id UUID NOT NULL REFERENCES administrateurs(id) ON DELETE CASCADE,
     cree_le TIMESTAMP DEFAULT NOW()
@@ -22,22 +22,14 @@ CREATE TABLE projets (
 CREATE TABLE utilisateurs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR NOT NULL UNIQUE,
-    google_id VARCHAR UNIQUE,
-    noms VARCHAR,
-    avatar_url VARCHAR,
-    projet_id UUID NOT NULL REFERENCES projets(id) ON DELETE CASCADE,
-    derniere_connexion TIMESTAMP,
     cree_le TIMESTAMP DEFAULT NOW()
 );
 
--- 4. Table des Sessions
-CREATE TABLE sessions (
+-- 4. Table des Utilisateurs Appartiennent à des Projets
+CREATE TABLE utilisateurs_projets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    refresh_token VARCHAR NOT NULL UNIQUE,
-    user_agent VARCHAR,
-    adresse_ip VARCHAR,
-    expire_le TIMESTAMP NOT NULL,
-    projet_id UUID NOT NULL REFERENCES projets(id) ON DELETE CASCADE,
+    derniere_connexion TIMESTAMP,
     utilisateur_id UUID NOT NULL REFERENCES utilisateurs(id) ON DELETE CASCADE,    
+    projet_id UUID NOT NULL REFERENCES projets(id) ON DELETE CASCADE,
     cree_le TIMESTAMP DEFAULT NOW()
 );
