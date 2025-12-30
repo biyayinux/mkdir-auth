@@ -15,7 +15,7 @@ Remplacer les valeurs d’exemple par les valeurs réelles utilisées en product
   GOOGLE_CLIENT_ID=123456-xxxxxx.apps.googleusercontent.com
   GOOGLE_CLIENT_SECRET=xxxxxx-xxxxxx
 
-  FRONTEND_URL=http://localhost:5173
+  DATABASE_URL=postgresql://user:password@localhost:5432/name-db?sslmode=disable
   JWT_SECRET=xxxxxx-xxxxxx-xxxxxx
 ```
 
