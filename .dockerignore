@@ -1,0 +1,38 @@
+# Secrets & Config
+.env
+*.env
+.env.*
+
+# Ignore les fichiers exécutables compilés localement
+main
+auth-server
+server_bin
+setup_bin
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Dépendances
+vendor/
+
+# IDE & Système
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+.git
+.gitignore
+
+# Logs et Données locales
+*.log
+db.txt
+*.db
+*.sqlite
+
+# Docker spécifiques
+Dockerfile
+docker-compose.yml
+.dockerignore
