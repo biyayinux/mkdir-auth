@@ -1,74 +1,32 @@
-package main
+package transport
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
+	"mkdir-auth/internal/auth"
+	"mkdir-auth/internal/database"
 	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/joho/godotenv"
-	_ "github.com/lib/pq"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 )
 
-var (
-	googleOauthConfig *oauth2.Config
-	db                *sql.DB
-	serverURL         string
-	port              string
-)
-
-func init() {
-	godotenv.Load()
-
-	serverURL = os.Getenv("SERVER_URL")
-	port = os.Getenv("PORT")
-
-	var err error
-	db, err = sql.Open("postgres", os.Getenv("DATABASE_URL"))
-	if err != nil {
-		log.Fatal("Erreur connexion DB:", err)
-	}
-
-	googleOauthConfig = &oauth2.Config{
-		RedirectURL:  serverURL + "/callback",
-		ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		Scopes:       []string{"https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"},
-		Endpoint:     google.Endpoint,
-	}
-}
-
-func main() {
-	http.HandleFunc("/login", handleLogin)
-	http.HandleFunc("/callback", handleCallback)
-	http.HandleFunc("/me", handleMe)
-	http.HandleFunc("/logout", handleLogout)
-
-	fmt.Println("Serveur Auth Multi-Locataire sur " + serverURL)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
-}
-
-func handleLogin(w http.ResponseWriter, r *http.Request) {
-	// Gestion cors
+// HandleLogin initie l'authentification Google
+func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	origin := r.Header.Get("Origin")
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 
-	// Nettoyage de l'origine
+	// Nettoyage de l'URL d'origine
 	rawOrigin := r.Header.Get("Origin")
 	if rawOrigin == "" {
 		rawOrigin = r.Header.Get("Referer")
 	}
 	cleanOrigin := strings.TrimSpace(strings.TrimSuffix(rawOrigin, "/"))
-
 	pubKey := r.URL.Query().Get("publishable_key")
 
 	var projet struct {
@@ -76,8 +34,8 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		Origine string
 	}
 
-	// Récupération de l'origine unique depuis la DB
-	err := db.QueryRow("SELECT id, origines_autorisees FROM projets WHERE publishable_key = $1", pubKey).
+	// Verification du projet et de l'origine en DB
+	err := database.DB.QueryRow("SELECT id, origines_autorisees FROM projets WHERE publishable_key = $1", pubKey).
 		Scan(&projet.ID, &projet.Origine)
 
 	if err != nil {
@@ -85,40 +43,39 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Comparaison stricte (Une seule origine autorisée)
 	if strings.TrimSpace(strings.TrimSuffix(projet.Origine, "/")) != cleanOrigin {
 		fmt.Printf("Origine refusée. Reçu: %s, Attendu: %s\n", cleanOrigin, projet.Origine)
 		http.Error(w, "Origine non autorisee", http.StatusForbidden)
 		return
 	}
 
-	// State combiné
+	// Redirection vers Google avec le state (ID|URL)
 	combinedState := projet.ID + "|" + cleanOrigin
-	url := googleOauthConfig.AuthCodeURL(combinedState)
+	url := auth.GoogleOauthConfig.AuthCodeURL(combinedState)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
-func handleCallback(w http.ResponseWriter, r *http.Request) {
+// HandleCallback traite le retour de Google et crée la session
+func HandleCallback(w http.ResponseWriter, r *http.Request) {
 	state := r.FormValue("state")
 	code := r.FormValue("code")
 
-	// Découpage du state dynamique
+	// Recupération des données du state
 	parts := strings.Split(state, "|")
 	if len(parts) < 2 {
 		http.Error(w, "State corrompu", http.StatusBadRequest)
 		return
 	}
-	projetID := parts[0]
-	frontendURL := parts[1]
+	projetID, frontendURL := parts[0], parts[1]
 
-	// Échange token Google
-	token, err := googleOauthConfig.Exchange(context.Background(), code)
+	// Echange du code contre un token Google
+	token, err := auth.GoogleOauthConfig.Exchange(context.Background(), code)
 	if err != nil {
 		http.Error(w, "Erreur token Google", http.StatusInternalServerError)
 		return
 	}
 
-	// Infos utilisateur Google
+	// Recupération du profil utilisateur Google
 	resp, err := http.Get("https://www.googleapis.com/oauth2/v2/userinfo?access_token=" + token.AccessToken)
 	if err != nil {
 		http.Error(w, "Erreur infos Google", http.StatusInternalServerError)
@@ -133,12 +90,12 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewDecoder(resp.Body).Decode(&gu)
 
-	// Insertion Email (Table utilisateurs)
+	// Sauvegarde ou mise à jour de l'utilisateur
 	var userID string
-	err = db.QueryRow(`
-		INSERT INTO utilisateurs (email) VALUES ($1)
-		ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
-		RETURNING id`, gu.Email).Scan(&userID)
+	err = database.DB.QueryRow(`
+        INSERT INTO utilisateurs (email) VALUES ($1)
+        ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+        RETURNING id`, gu.Email).Scan(&userID)
 
 	if err != nil {
 		log.Println("Erreur DB utilisateurs:", err)
@@ -146,14 +103,14 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Liaison Projet (Table utilisateurs_projets)
-	_, err = db.Exec(`
-		INSERT INTO utilisateurs_projets (utilisateur_id, projet_id, derniere_connexion)
-		VALUES ($1, $2, NOW())
-		ON CONFLICT (utilisateur_id, projet_id) DO UPDATE SET derniere_connexion = NOW()`,
+	// Enregistrement de la connexion au projet
+	database.DB.Exec(`
+        INSERT INTO utilisateurs_projets (utilisateur_id, projet_id, derniere_connexion)
+        VALUES ($1, $2, NOW())
+        ON CONFLICT (utilisateur_id, projet_id) DO UPDATE SET derniere_connexion = NOW()`,
 		userID, projetID)
 
-	// Génération JWT avec données profil (Nom/Avatar)
+	// Création du JWT
 	claims := jwt.MapClaims{
 		"uid":    userID,
 		"pid":    projetID,
@@ -163,10 +120,9 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		"exp":    time.Now().Add(time.Hour * 24).Unix(),
 	}
 	tokenString, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(os.Getenv("JWT_SECRET")))
-	// On récupère la valeur du .env et on vérifie si elle est égale à 'true'
 	isSecure := os.Getenv("COOKIE_SECURE") == "true"
 
-	// Cookie sécurisé
+	// Envoi du cookie de session
 	http.SetCookie(w, &http.Cookie{
 		Name:     "auth_token",
 		Value:    tokenString,
@@ -177,11 +133,12 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   86400,
 	})
 
-	// Retour dynamique vers l'origine précise
+	// Retour automatique vers le frontend
 	http.Redirect(w, r, frontendURL, http.StatusTemporaryRedirect)
 }
 
-func handleMe(w http.ResponseWriter, r *http.Request) {
+// HandleMe renvoie les infos de l'utilisateur via le JWT
+func HandleMe(w http.ResponseWriter, r *http.Request) {
 	origin := r.Header.Get("Origin")
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -193,13 +150,13 @@ func handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validation du token
 	token, err := jwt.Parse(cookie.Value, func(t *jwt.Token) (interface{}, error) {
 		return []byte(os.Getenv("JWT_SECRET")), nil
 	})
 
 	if err == nil && token.Valid {
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			// JWT vitesse maximale, pas de SQL
 			user := map[string]interface{}{
 				"id":     claims["uid"],
 				"email":  claims["email"],
@@ -210,11 +167,11 @@ func handleMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	w.WriteHeader(http.StatusUnauthorized)
 }
 
-func handleLogout(w http.ResponseWriter, r *http.Request) {
+// HandleLogout supprime le cookie de session
+func HandleLogout(w http.ResponseWriter, r *http.Request) {
 	origin := r.Header.Get("Origin")
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
