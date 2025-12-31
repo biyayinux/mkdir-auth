@@ -1,35 +1,35 @@
 # [ Étape 1 ] Compilation
 FROM golang:1.21-alpine AS builder
 
-# Installation des certificats de sécurité et outils de build
+# Installation des outils nécessaires
 RUN apk add --no-cache git ca-certificates
 
-# Définition du répertoire de travail
 WORKDIR /app
 
-# Copie des fichiers de dépendances
+# Gestion des dépendances (mise en cache)
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copie de tout le code source
+# Copie de l'intégralité du projet
 COPY . .
 
-# Compilation du binaire (optimisé pour Docker)
-RUN CGO_ENABLED=0 GOOS=linux go build -o main .
+# Compilation du binaire en pointant vers le bon dossier cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -o auth-server ./cmd/server/main.go
 
-# [ Étape 2 ] Image finale
+# [ Étape 2 ] Image finale légère
 FROM alpine:latest
+
+# Installation des certificats pour les appels API Google (HTTPS)
+RUN apk --no-cache add ca-certificates
 
 WORKDIR /app
 
-# Récupération des certificats CA (pour que l'auth Google HTTPS fonctionne)
-RUN apk --no-cache add ca-certificates
+# Récupération du binaire compilé
+COPY --from=builder /app/auth-server .
 
-# Copie du binaire depuis le builder
-COPY --from=builder /app/main .
-
-# Exposition du port
+# Le port est exposé dynamiquement via la variable d'env PORT, 
+# mais on indique 8080 par défaut ici.
 EXPOSE 8080
 
-# Lancement du serveur
-CMD ["./main"]
+# Lancement de l'application
+CMD ["./auth-server"]
